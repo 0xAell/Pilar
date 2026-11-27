@@ -21,12 +21,15 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const urlParams = new URLSearchParams(window.location.search);
 const debugEnabled = urlParams.has("debug") || window.localStorage.getItem("debug") === "1";
 const appVersion = (document.body.dataset.appVersion || "").trim() || "unknown";
-const apiOriginOverride = (urlParams.get("apiOrigin") || "").trim();
+const hostname = window.location.hostname;
+const requestedApiOrigin = (urlParams.get("apiOrigin") || "").trim();
+const apiOriginOverride = requestedApiOrigin && debugEnabled && isLoopbackHost(hostname)
+    ? resolveLocalApiBase(requestedApiOrigin)
+    : "";
 const htmlApiOrigin = (document.body.dataset.apiOrigin || "").trim();
 const apiOrigin = (apiOriginOverride || htmlApiOrigin).trim();
 const defaultApiBase = resolveApiBase("https://degendogs-dao.ael-dev3.deno.net");
-const isFirebaseHost = window.location.origin.includes("web.app") ||
-    window.location.origin.includes("firebaseapp.com");
+const isFirebaseHost = hostname.endsWith(".web.app") || hostname.endsWith(".firebaseapp.com");
 const apiBase = resolveApiBase(apiOrigin || (isFirebaseHost ? defaultApiBase : window.location.origin));
 const apiVerifyUrl = `${apiBase}/api/verify`;
 const fallbackVerifyUrl = `${defaultApiBase}/api/verify`;
@@ -113,6 +116,23 @@ function resolveApiBase(raw) {
         base = base.replace(/\/api\/verify\/?$/, "");
     }
     return base.replace(/\/+$/, "");
+}
+function isLoopbackHost(hostname) {
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+function resolveLocalApiBase(raw) {
+    try {
+        const url = new URL(raw);
+        if ((url.protocol === "http:" || url.protocol === "https:") &&
+            isLoopbackHost(url.hostname) &&
+            !url.username && !url.password && !url.search && !url.hash) {
+            return resolveApiBase(url.href);
+        }
+    }
+    catch {
+        return "";
+    }
+    return "";
 }
 function setDebugValue(el, text) {
     if (el) {
